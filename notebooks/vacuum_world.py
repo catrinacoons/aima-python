@@ -74,7 +74,7 @@ psource(TrivialVacuumEnvironment)
 
 # %%
 # These are the two locations for the two-state environment
-loc_A, loc_B = (0, 0), (1, 0)
+loc_A, loc_B, loc_C, loc_D = (0, 0), (1, 0), (0, 1), (1, 1)
 
 # Initialize the two-state environment
 trivial_vacuum_env = TrivialVacuumEnvironment()
@@ -117,17 +117,8 @@ print("RandomVacuumAgent is located at {}.".format(random_agent.location))
 # In the two-state vacuum world, the table would consist of all the possible states of the agent.
 
 # %%
-table = {((loc_A, 'Clean'),): 'Right',
-             ((loc_A, 'Dirty'),): 'Suck',
-             ((loc_B, 'Clean'),): 'Left',
-             ((loc_B, 'Dirty'),): 'Suck',
-             ((loc_A, 'Dirty'), (loc_A, 'Clean')): 'Right',
-             ((loc_A, 'Clean'), (loc_B, 'Dirty')): 'Suck',
-             ((loc_B, 'Clean'), (loc_A, 'Dirty')): 'Suck',
-             ((loc_B, 'Dirty'), (loc_B, 'Clean')): 'Left',
-             ((loc_A, 'Dirty'), (loc_A, 'Clean'), (loc_B, 'Dirty')): 'Suck',
-             ((loc_B, 'Dirty'), (loc_B, 'Clean'), (loc_A, 'Dirty')): 'Suck'
-        }
+psource(build_vacuum_table)
+table = build_vacuum_table()
 
 # %% [markdown]
 # We will now create a table-driven agent program for our two-state environment.
@@ -236,7 +227,12 @@ trivial_vacuum_env.delete_thing(simple_reflex_agent)
 # %%
 # TODO: Implement this function for the two-dimensional environment
 def update_state(state, action, percept, model):
-    pass
+    if state is None:
+        state = {loc_A: None, loc_B: None, loc_C: None, loc_D: None}
+
+    location, status = percept
+    state[location] = status
+    return state
 
 # Create a model-based reflex agent
 model_based_reflex_agent = ModelBasedVacuumAgent()

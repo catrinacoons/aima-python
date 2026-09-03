@@ -191,7 +191,7 @@ def rule_match(state, rules):
 # ______________________________________________________________________________
 
 
-loc_A, loc_B, loc_C, loc_D = (0, 0), (1, 0), (0, 1), (1, 1)  # The two locations for the Vacuum world
+loc_A, loc_B, loc_C, loc_D = (0, 0), (1, 0), (0, 1), (1, 1)  # The four locations for the Vacuum world
 
 NEXT_LOCATION = {
     loc_A: (loc_B, 'Right'),
@@ -227,17 +227,20 @@ def build_vacuum_table():
             status = dict(zip(locations, statuses))
             location = start
             percepts = []
+            known = {loc: None for loc in locations} # what the robot actually knows
 
             for _ in range(12):  # generous upper bound; cycle is length 4
                 percept = (location, status[location])
                 percepts.append(percept)
                 seq = tuple(percepts)
+                known[location] = status[location]
 
-                if all(v == 'Clean' for v in status.values()):
+                if all(known[loc] == 'Clean' for loc in locations):
                     action = 'NoOp'
                 elif status[location] == 'Dirty':
                     action = 'Suck'
                     status[location] = 'Clean'
+                    known[location] = 'Clean'
                 else:
                     location, action = NEXT_LOCATION[location]
 
