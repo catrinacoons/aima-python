@@ -191,8 +191,14 @@ def rule_match(state, rules):
 # ______________________________________________________________________________
 
 
-loc_A, loc_B = (0, 0), (1, 0)  # The two locations for the Vacuum world
+loc_A, loc_B, loc_C, loc_D = (0, 0), (1, 0), (0, 1), (1, 1)  # The two locations for the Vacuum world
 
+NEXT_LOCATION = {
+    loc_A: (loc_B, 'Right'),
+    loc_B: (loc_D, 'Down'),
+    loc_D: (loc_C, 'Left'),
+    loc_C: (loc_A, 'Up'),
+}
 
 def RandomVacuumAgent():
     """Randomly choose one of the actions from the vacuum environment.
@@ -206,25 +212,54 @@ def RandomVacuumAgent():
     return Agent(RandomAgentProgram(['Right', 'Left', 'Suck', 'NoOp']))
 
 
+def build_vacuum_table():
+    """Builds the percept-sequence -> action table for the 2x2 world by
+    simulating every possible starting location and every possible
+    combination of initial dirty/clean states, as it's a very big table 
+    with more locations added."""
+    from itertools import product
+
+    table = {}
+    locations = [loc_A, loc_B, loc_C, loc_D]
+
+    for start in locations:
+        for statuses in product(['Clean', 'Dirty'], repeat=4):
+            status = dict(zip(locations, statuses))
+            location = start
+            percepts = []
+
+            for _ in range(12):  # generous upper bound; cycle is length 4
+                percept = (location, status[location])
+                percepts.append(percept)
+                seq = tuple(percepts)
+
+                if all(v == 'Clean' for v in status.values()):
+                    action = 'NoOp'
+                elif status[location] == 'Dirty':
+                    action = 'Suck'
+                    status[location] = 'Clean'
+                else:
+                    location, action = NEXT_LOCATION[location]
+
+                if seq in table and table[seq] != action:
+                    raise ValueError(f'Inconsistent action for {seq}')
+                table[seq] = action
+
+                if action == 'NoOp':
+                    break
+    return table
+
+
 def TableDrivenVacuumAgent():
     """Tabular approach towards vacuum world as mentioned in [Figure 2.3]
     >>> agent = TableDrivenVacuumAgent()
     >>> environment = TrivialVacuumEnvironment()
     >>> environment.add_thing(agent)
     >>> environment.run()
-    >>> environment.status == {(1,0):'Clean' , (0,0) : 'Clean'}
+    >>> all(v == 'Clean' for v in environment.status.values())
     True
     """
-    table = {((loc_A, 'Clean'),): 'Right',
-             ((loc_A, 'Dirty'),): 'Suck',
-             ((loc_B, 'Clean'),): 'Left',
-             ((loc_B, 'Dirty'),): 'Suck',
-             ((loc_A, 'Dirty'), (loc_A, 'Clean')): 'Right',
-             ((loc_A, 'Clean'), (loc_B, 'Dirty')): 'Suck',
-             ((loc_B, 'Clean'), (loc_A, 'Dirty')): 'Suck',
-             ((loc_B, 'Dirty'), (loc_B, 'Clean')): 'Left',
-             ((loc_A, 'Dirty'), (loc_A, 'Clean'), (loc_B, 'Dirty')): 'Suck',
-             ((loc_B, 'Dirty'), (loc_B, 'Clean'), (loc_A, 'Dirty')): 'Suck'}
+    table = build_vacuum_table()
     return Agent(TableDrivenAgentProgram(table))
 
 
@@ -252,29 +287,28 @@ def ReflexVacuumAgent():
     return Agent(program)
 
 
+
+
 def ModelBasedVacuumAgent():
     """An agent that keeps track of what locations are clean or dirty.
     >>> agent = ModelBasedVacuumAgent()
     >>> environment = TrivialVacuumEnvironment()
     >>> environment.add_thing(agent)
     >>> environment.run()
-    >>> environment.status == {(1,0):'Clean' , (0,0) : 'Clean'}
+    >>> all(v == 'Clean' for v in environment.status.values())
     True
     """
-    model = {loc_A: None, loc_B: None}
+    model = {loc_A: None, loc_B: None, loc_C: None, loc_D: None}
 
     def program(percept):
         """Same as ReflexVacuumAgent, except if everything is clean, do NoOp."""
         location, status = percept
         model[location] = status  # Update the model here
-        if model[loc_A] == model[loc_B] == 'Clean':
+        if all(model[loc] == 'Clean' for loc in model):
             return 'NoOp'
         elif status == 'Dirty':
             return 'Suck'
-        elif location == loc_A:
-            return 'Right'
-        elif location == loc_B:
-            return 'Left'
+        else: return NEXT_LOCATION[location][1]
 
     return Agent(program)
 
@@ -806,8 +840,8 @@ class TrivialVacuumEnvironment(Environment):
 
     def __init__(self):
         super().__init__()
-        self.status = {loc_A: random.choice(['Clean', 'Dirty']),
-                       loc_B: random.choice(['Clean', 'Dirty'])}
+        self.status = {loc: random.choice(['Clean', 'Dirty'])
+                       for loc in (loc_A, loc_B, loc_C, loc_D)}
 
     def thing_classes(self):
         """Return the Thing/Agent classes that may populate this vacuum world."""
@@ -820,11 +854,18 @@ class TrivialVacuumEnvironment(Environment):
     def execute_action(self, agent, action):
         """Change agent's location and/or location's status; track performance.
         Score 10 for each dirt cleaned; -1 for each move."""
+        x, y = agent.location
         if action == 'Right':
-            agent.location = loc_B
+            agent.location = (x + 1, y)
             agent.performance -= 1
         elif action == 'Left':
-            agent.location = loc_A
+            agent.location = (x - 1, y)
+            agent.performance -= 1
+        elif action == 'Up':
+            agent.location = (x, y - 1)
+            agent.performance -= 1
+        elif action == 'Down':
+            agent.location = (x, y + 1)
             agent.performance -= 1
         elif action == 'Suck':
             if self.status[agent.location] == 'Dirty':
@@ -833,7 +874,7 @@ class TrivialVacuumEnvironment(Environment):
 
     def default_location(self, thing):
         """Agents start in either location at random."""
-        return random.choice([loc_A, loc_B])
+        return random.choice([loc_A, loc_B, loc_C, loc_D])
 
 
 # ______________________________________________________________________________
