@@ -135,15 +135,15 @@ def TableDrivenAgentProgram(table):
 
 def RandomAgentProgram(actions):
     """An agent that chooses an action at random, ignoring all percepts.
-    >>> list = ['Right', 'Left', 'Suck', 'NoOp']
-    >>> program = RandomAgentProgram(list)
+    >>>list = ['Right', 'Left', 'Up', 'Down', 'Suck', 'NoOp']
+    >>>program = RandomAgentProgram(list)
     >>> agent = Agent(program)
     >>> environment = TrivialVacuumEnvironment()
     >>> environment.add_thing(agent)
-    >>> environment.run()
-    >>> environment.status == {(1, 0): 'Clean' , (0, 0): 'Clean'}
+    >>> environment.run().    ---------- ask if the random agent would use the table or just based on the list
+    environment.status == {(1, 0): 'Clean' , (0, 0): 'Clean', (0, 1): 'Clean', (1, 1): 'Clean'}"""
     True
-    """
+    
     return lambda percept: random.choice(actions)
 
 
@@ -154,6 +154,7 @@ def SimpleReflexAgentProgram(rules, interpret_input):
     """
     [Figure 2.10]
     This agent takes action based solely on the percept.
+    ------get the states from the table?
     """
 
     def program(percept):
@@ -209,7 +210,7 @@ def RandomVacuumAgent():
     >>> environment.status == {(1,0):'Clean' , (0,0) : 'Clean'}
     True
     """
-    return Agent(RandomAgentProgram(['Right', 'Left', 'Suck', 'NoOp']))
+    return Agent(RandomAgentProgram(['Right', 'Left', 'Up', 'Down', 'Suck', 'NoOp']))
 
 
 def build_vacuum_table():
@@ -275,17 +276,15 @@ def ReflexVacuumAgent():
     >>> environment.add_thing(agent)
     >>> environment.run()
     >>> environment.status == {(1,0):'Clean' , (0,0) : 'Clean'}
+    >>> all(v == 'Clean' for v in environemnt.status.values())
     True
     """
-
     def program(percept):
         location, status = percept
         if status == 'Dirty':
             return 'Suck'
-        elif location == loc_A:
-            return 'Right'
-        elif location == loc_B:
-            return 'Left'
+        else:
+            return NEXT_LOCATION[location][1]
 
     return Agent(program)
 
@@ -541,28 +540,27 @@ class XYEnvironment(Environment):
         return self.things_near(agent.location)
 
     def execute_action(self, agent, action):
-        """Apply a motion or manipulation action for the agent. Supports turning
-        ('TurnRight'/'TurnLeft'), moving one step ('Forward', setting agent.bump on
-        a collision), grabbing a grabbable thing at the agent's location ('Grab'),
-        and dropping the last held thing ('Release')."""
-        agent.bump = False
-        if action == 'TurnRight':
-            agent.direction += Direction.R
-        elif action == 'TurnLeft':
-            agent.direction += Direction.L
-        elif action == 'Forward':
-            agent.bump = self.move_to(agent, agent.direction.move_forward(agent.location))
-        elif action == 'Grab':
-            things = [thing for thing in self.list_things_at(agent.location) if agent.can_grab(thing)]
-            if things:    
-                agent.holding.append(things[0])
-                print("Grabbing ", things[0].__class__.__name__)
-                self.delete_thing(things[0])
-        elif action == 'Release':
-            if agent.holding:
-                dropped = agent.holding.pop()
-                print("Dropping ", dropped.__class__.__name__)
-                self.add_thing(dropped, location=agent.location)
+        """Change agent's location and/or location's status; track performance.
+        Score 10 for each dirt cleaned; -1 for each move."""
+        x, y = agent.location
+        if action == 'Right':
+            agent.location = loc_B
+            agent.location = (x + 1, y)
+            agent.performance -= 1
+        elif action == 'Left':
+            agent.location = loc_A
+            agent.location = (x - 1, y)
+            agent.performance -= 1
+        elif action == 'Up':
+            agent.location = (x, y - 1)
+            agent.performance -= 1
+        elif action == 'Down':
+            agent.location = (x, y + 1)
+            agent.performance -= 1
+        elif action == 'Suck':
+            if self.status[agent.location] == 'Dirty':
+                agent.performance += 10
+            self.status[agent.location] = 'Clean'
 
     def default_location(self, thing):
         """Return a random inbounds location that contains no Obstacle."""
@@ -859,16 +857,24 @@ class TrivialVacuumEnvironment(Environment):
         Score 10 for each dirt cleaned; -1 for each move."""
         x, y = agent.location
         if action == 'Right':
-            agent.location = (x + 1, y)
+            new_location = (x + 1, y)
+            if new_location in self.status:
+                agent.location = new_location
             agent.performance -= 1
         elif action == 'Left':
-            agent.location = (x - 1, y)
+            new_location = (x - 1, y)
+            if new_location in self.status:
+                agent.location = new_location
             agent.performance -= 1
         elif action == 'Up':
-            agent.location = (x, y - 1)
+            new_location = (x, y - 1)
+            if new_location in self.status:
+                 agent.location = new_location
             agent.performance -= 1
         elif action == 'Down':
-            agent.location = (x, y + 1)
+            new_location = (x, y + 1)
+            if new_location in self.status:
+                agent.location = new_location
             agent.performance -= 1
         elif action == 'Suck':
             if self.status[agent.location] == 'Dirty':
